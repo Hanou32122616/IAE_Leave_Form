@@ -84,6 +84,10 @@ table.lt{outline:.25cqw solid #111;outline-offset:-.1cqw}
 .sigs img{position:absolute;bottom:100%;left:2cqw;height:5.5cqw;max-width:90%}
 .sigs .d{position:absolute;bottom:calc(100% + .4cqw);left:0;font-size:1.3cqw}
 .note{font-size:.83rem;color:var(--muted)}
+.mailhelp{border:1px solid var(--accent);background:var(--accent-soft);border-radius:8px;padding:10px 12px;font-size:.88rem;display:grid;gap:6px}
+.mailhelp p{margin:0}
+.mailhelp a{color:var(--accent);font-weight:600}
+.mailhelp .addr{font-family:var(--f-mono);font-size:.8rem;user-select:all;white-space:nowrap}
 .hol{margin-top:8px;font-size:.85rem}
 .hol summary{cursor:pointer;color:var(--accent);font-weight:600}
 .hol ul{list-style:none;padding:0;margin:8px 0 0;display:grid;row-gap:4px;grid-template-columns:auto 1fr auto;column-gap:12px;align-items:center}
@@ -163,12 +167,17 @@ table.lt{outline:.25cqw solid #111;outline-offset:-.1cqw}
     </section>
 
     <section>
-      <h2>Download</h2>
+      <h2>Send</h2>
       <div class="actions">
-        <button type="button" class="primary" id="pdfBtn">Download PDF</button>
+        <button type="button" class="primary" id="mailBtn">Email application</button>
+        <button type="button" id="pdfBtn">Download PDF</button>
         <button type="button" id="xlsxBtn">Download Excel</button>
       </div>
       <p class="status" id="status" role="status"></p>
+      <div class="mailhelp" id="mailHelp" hidden>
+        <p><strong>Next:</strong> attach the PDF from your Downloads folder to the email that opened, then press Send.</p>
+        <p>Email didn't open? Use <a id="gmailLink" target="_blank" rel="noopener">Gmail</a> or <a id="outlookLink" target="_blank" rel="noopener">Outlook on the web</a> instead, or send it to <span class="addr" id="mailAddr"></span> <button type="button" class="hbtn" id="copyAddr">Copy address</button></p>
+      </div>
       <p class="note">Your entries stay saved in this browser so you only type your address and number once.</p>
     </section>
   </form>
@@ -367,7 +376,7 @@ function fileBase(){const n=(state.name.trim()||"Leave").replace(/[^A-Za-z0-9]+/
 async function offer(filename,data){
   try{const blob=new Blob([data],{type:filename.endsWith(".pdf")?"application/pdf":"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
     const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=filename;document.body.appendChild(a);a.click();
-    setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},2000);setStatus("Saved "+filename+" to your Downloads folder.","ok")}
+    setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},2000);setStatus("Saved "+filename+" to your Downloads folder.","ok");return true}
   catch(e){setStatus("Couldn't download the file. Try again.","err")}
 }
 function gate(){const p=check();if(p.length){setStatus("Please add "+p.join(" and ")+" first.","err");return false}return true}
@@ -433,6 +442,33 @@ $("xlsxBtn").addEventListener("click",async()=>{if(!gate())return;if(!window.Exc
 
 $("newHolBtn").addEventListener("click",addHoliday);
 $("newHolName").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();addHoliday()}});
+/* ---------- email ---------- */
+const LEAVE_EMAIL="hanou.jacobs@iae-nam.com";
+function mailParts(){
+  const i=state.rows.findIndex(r=>r.on),r=state.rows[i]||{};const type=(TYPES[i]||"").toLowerCase().replace(/\b\w/g,c=>c.toUpperCase());
+  const nm=state.name.trim();
+  const subject="Leave Application - "+nm.toUpperCase()+" - "+type+" ("+fmt(r.from)+" to "+fmt(r.to)+")";
+  const L=["Good day,","","Please find attached my leave application.","",
+    "Name: "+nm.toUpperCase(),"Leave type: "+type,"From: "+fmt(r.from),"To: "+fmt(r.to),"Total work days: "+(r.days||""),
+    "Scheduled return date: "+fmt(state.ret)];
+  if(state.remarks.trim())L.push("Remarks: "+state.remarks.trim());
+  if(state.addr.trim())L.push("Address whilst on leave: "+state.addr.trim());
+  if(state.tel.trim())L.push("Telephone: "+state.tel.trim());
+  L.push("","Kind regards,",nm);
+  return{subject,body:L.join("\r\n")};
+}
+function openMail(){
+  const {subject,body}=mailParts(),e=encodeURIComponent;
+  const mailto="mailto:"+LEAVE_EMAIL+"?subject="+e(subject)+"&body="+e(body);
+  $("gmailLink").href="https://mail.google.com/mail/?view=cm&fs=1&to="+e(LEAVE_EMAIL)+"&su="+e(subject)+"&body="+e(body);
+  $("outlookLink").href="https://outlook.office.com/mail/deeplink/compose?to="+e(LEAVE_EMAIL)+"&subject="+e(subject)+"&body="+e(body);
+  $("mailAddr").textContent=LEAVE_EMAIL;$("mailHelp").hidden=false;
+  const a=document.createElement("a");a.href=mailto;document.body.appendChild(a);a.click();a.remove();
+}
+$("mailBtn").addEventListener("click",async()=>{if(!gate())return;if(!window.jspdf){setStatus("The PDF tool didn't load. Check your connection and reload.","err");return}
+  setStatus("Preparing PDF…");let ok=false;try{ok=await offer(fileBase()+".pdf",await makePdf())}catch(e){setStatus("Couldn't build the PDF.","err");return}
+  if(ok){setTimeout(openMail,400)}});
+$("copyAddr").addEventListener("click",async()=>{try{await navigator.clipboard.writeText(LEAVE_EMAIL);$("copyAddr").textContent="Copied"}catch(e){const s=window.getSelection(),r=document.createRange();r.selectNodeContents($("mailAddr"));s.removeAllRanges();s.addRange(r)}setTimeout(()=>{$("copyAddr").textContent="Copy address"},2000)});
 /* ---------- start ---------- */
 recalc();requestAnimationFrame(sizeCanvas);
 </script>
