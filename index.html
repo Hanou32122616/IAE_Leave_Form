@@ -176,7 +176,7 @@ table.lt{outline:.25cqw solid #111;outline-offset:-.1cqw}
       <p class="status" id="status" role="status"></p>
       <div class="mailhelp" id="mailHelp" hidden>
         <p><strong>Next:</strong> in the Outlook email that opened, click <strong>Attach</strong>, choose the PDF from your Downloads folder, then press Send.</p>
-        <p>Outlook didn't open? <a id="outlookLink" target="_blank" rel="noopener">Open Outlook</a>, or use <a id="mailtoLink">the email app on this PC</a>, or send it to <span class="addr" id="mailAddr"></span> <button type="button" class="hbtn" id="copyAddr">Copy address</button></p>
+        <p>Outlook didn't open? <a id="mailtoLink">Try again</a>, use <a id="outlookLink" target="_blank" rel="noopener">Outlook on the web</a>, or send it to <span class="addr" id="mailAddr"></span> <button type="button" class="hbtn" id="copyAddr">Copy address</button></p>
       </div>
     </section>
   </form>
@@ -463,11 +463,12 @@ function mailLinks(){
   return outlook;
 }
 $("mailBtn").addEventListener("click",async()=>{if(!gate())return;if(!window.jspdf){setStatus("The PDF tool didn't load. Check your connection and reload.","err");return}
-  // open Outlook straight away (inside the click) so the browser doesn't block the new tab
-  const url=mailLinks();let w=null;try{w=window.open(url,"_blank")}catch(e){}
+  mailLinks();setStatus("Preparing PDF…");let ok=false;
+  try{ok=await offer(fileBase()+".pdf",await makePdf())}catch(e){setStatus("Couldn't build the PDF.","err");return}
+  if(!ok)return;
   $("mailHelp").hidden=false;
-  setStatus("Preparing PDF…");try{await offer(fileBase()+".pdf",await makePdf())}catch(e){setStatus("Couldn't build the PDF.","err")}
-  if(!w)setStatus("Click Open Outlook below to start the email. The PDF is in your Downloads folder.","err");});
+  // open the email in the Outlook app on this PC (the PC's default email program)
+  setTimeout(()=>{const a=document.createElement("a");a.href=$("mailtoLink").href;document.body.appendChild(a);a.click();a.remove()},400);});
 $("copyAddr").addEventListener("click",async()=>{try{await navigator.clipboard.writeText(LEAVE_EMAIL);$("copyAddr").textContent="Copied"}catch(e){const s=window.getSelection(),r=document.createRange();r.selectNodeContents($("mailAddr"));s.removeAllRanges();s.addRange(r)}setTimeout(()=>{$("copyAddr").textContent="Copy address"},2000)});
 /* ---------- start ---------- */
 recalc();requestAnimationFrame(sizeCanvas);
