@@ -270,13 +270,14 @@ function addHoliday(){
 let state={customHol:[],removedHol:[],name:"",remarks:"",ret:"",retManual:false,addr:"",tel:"",appDate:iso(new Date()),sig:"",
   rows:TYPES.map((t,i)=>({on:i===0,from:"",to:"",days:"",manual:false}))};
 try{const s=JSON.parse(localStorage.getItem(STORE)||"null");if(s&&s.rows&&s.rows.length===6)state=Object.assign(state,s)}catch(e){}
+(function(){let seen=false;state.rows.forEach(r=>{if(r.on&&!seen)seen=true;else r.on=false});if(!seen)state.rows[0].on=true})();
 function save(){try{localStorage.setItem(STORE,JSON.stringify(state))}catch(e){}}
 
 /* ---------- build leave rows ---------- */
 const typesEl=$("types");
 TYPES.forEach((t,i)=>{
   const w=document.createElement("div");w.className="type";w.id="type"+i;
-  w.innerHTML=`<label class="type-toggle" for="on${i}"><input type="checkbox" id="on${i}"><span>${t}</span><span class="days-chip" id="chip${i}"></span></label>
+  w.innerHTML=`<label class="type-toggle" for="on${i}"><input type="radio" name="ltype" id="on${i}"><span>${t}</span><span class="days-chip" id="chip${i}"></span></label>
   <div class="type-body" id="body${i}" hidden>
     <label class="f" for="from${i}">From<input type="date" id="from${i}"></label>
     <label class="f" for="to${i}">To<input type="date" id="to${i}"></label>
@@ -284,7 +285,7 @@ TYPES.forEach((t,i)=>{
     <p class="hint" id="h${i}" style="grid-column:1/-1;margin:0" hidden></p>
   </div>`;
   typesEl.appendChild(w);
-  $("on"+i).addEventListener("change",e=>{state.rows[i].on=e.target.checked;recalc();});
+  $("on"+i).addEventListener("change",e=>{if(e.target.checked)state.rows.forEach((r,j)=>{r.on=j===i});recalc();});
   $("from"+i).addEventListener("change",e=>{const r=state.rows[i];r.from=e.target.value;if(r.to&&r.to<r.from)r.to=r.from;if(!r.to)r.to=r.from;r.manual=false;recalc();});
   $("to"+i).addEventListener("change",e=>{state.rows[i].to=e.target.value;state.rows[i].manual=false;recalc();});
   $("days"+i).addEventListener("input",e=>{state.rows[i].days=e.target.value;state.rows[i].manual=true;render();});
@@ -360,7 +361,7 @@ function setStatus(t,c){const s=$("status");s.textContent=t;s.className="status"
 function check(){
   const p=[];if(!state.name.trim())p.push("your name");
   const on=state.rows.filter(r=>r.on);if(!on.length)p.push("a leave type");
-  else if(on.some(r=>!r.from||!r.to))p.push("From and To dates for each ticked leave type");
+  else if(on.some(r=>!r.from||!r.to))p.push("the From and To dates");
   return p;
 }
 function fileBase(){const n=(state.name.trim()||"Leave").replace(/[^A-Za-z0-9]+/g,"_").replace(/^_|_$/g,"");const f=state.rows.find(r=>r.on&&r.from);return n+"_Leave_Form"+(f?"_"+f.from:"")}
