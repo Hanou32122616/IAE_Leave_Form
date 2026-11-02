@@ -448,13 +448,7 @@ function mailParts(){
   const i=state.rows.findIndex(r=>r.on),r=state.rows[i]||{};const type=(TYPES[i]||"").toLowerCase().replace(/\b\w/g,c=>c.toUpperCase());
   const nm=state.name.trim();
   const subject="Leave Application - "+nm.toUpperCase()+" - "+type+" ("+fmt(r.from)+" to "+fmt(r.to)+")";
-  const L=["Good day,","","Please find attached my leave application.","",
-    "Name: "+nm.toUpperCase(),"Leave type: "+type,"From: "+fmt(r.from),"To: "+fmt(r.to),"Total work days: "+(r.days||""),
-    "Scheduled return date: "+fmt(state.ret)];
-  if(state.remarks.trim())L.push("Remarks: "+state.remarks.trim());
-  if(state.addr.trim())L.push("Address whilst on leave: "+state.addr.trim());
-  if(state.tel.trim())L.push("Telephone: "+state.tel.trim());
-  L.push("","Kind regards,",nm);
+  const L=["Good day,","","Please find attached my leave application.","","Kind regards,",nm];
   return{subject,body:L.join("\r\n")};
 }
 function mailLinks(){
