@@ -463,12 +463,11 @@ function mailLinks(){
   return outlook;
 }
 $("mailBtn").addEventListener("click",async()=>{if(!gate())return;if(!window.jspdf){setStatus("The PDF tool didn't load. Check your connection and reload.","err");return}
-  mailLinks();setStatus("Preparing PDF…");let ok=false;
-  try{ok=await offer(fileBase()+".pdf",await makePdf())}catch(e){setStatus("Couldn't build the PDF.","err");return}
-  if(!ok)return;
-  $("mailHelp").hidden=false;
-  // open the email in the Outlook app on this PC (the PC's default email program)
-  setTimeout(()=>{const a=document.createElement("a");a.href=$("mailtoLink").href;document.body.appendChild(a);a.click();a.remove()},400);});
+  // open Outlook first, straight inside the click, so the browser allows it
+  mailLinks();$("mailHelp").hidden=false;
+  try{window.location.href=$("mailtoLink").href}catch(e){}
+  setStatus("Preparing PDF…");
+  try{await offer(fileBase()+".pdf",await makePdf())}catch(e){setStatus("Couldn't build the PDF.","err")}});
 $("copyAddr").addEventListener("click",async()=>{try{await navigator.clipboard.writeText(LEAVE_EMAIL);$("copyAddr").textContent="Copied"}catch(e){const s=window.getSelection(),r=document.createRange();r.selectNodeContents($("mailAddr"));s.removeAllRanges();s.addRange(r)}setTimeout(()=>{$("copyAddr").textContent="Copy address"},2000)});
 /* ---------- start ---------- */
 recalc();requestAnimationFrame(sizeCanvas);
