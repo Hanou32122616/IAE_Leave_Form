@@ -83,7 +83,13 @@ table.lt{outline:.25cqw solid #111;outline-offset:-.1cqw}
 .note{font-size:.83rem;color:var(--muted)}
 .hol{margin-top:8px;font-size:.85rem}
 .hol summary{cursor:pointer;color:var(--accent);font-weight:600}
-.hol ul{list-style:none;padding:0;margin:8px 0 0;display:grid;gap:2px;grid-template-columns:auto 1fr;column-gap:14px}
+.hol ul{list-style:none;padding:0;margin:8px 0 0;display:grid;row-gap:4px;grid-template-columns:auto 1fr auto;column-gap:12px;align-items:center}
+.hol .off{color:var(--muted);text-decoration:line-through}
+.hol .add{color:var(--ok)}
+.hbtn{font-size:.75rem;padding:2px 8px;font-weight:500}
+.hol-add{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.hol-add input{flex:1 1 140px;padding:6px 9px}
+.hol-add button{padding:6px 12px}
 .hol li{display:contents}
 .hol .hd{font-family:var(--f-mono);font-size:.78rem;color:var(--muted);white-space:nowrap}
 .hol .mv{color:var(--warn)}
@@ -112,7 +118,9 @@ table.lt{outline:.25cqw solid #111;outline-offset:-.1cqw}
       <h2>Leave type</h2>
       <div class="types" id="types"></div>
       <p class="hint">Work days skip weekends and Namibian public holidays. A holiday on a Sunday moves to the Monday. You can type over the number if needed.</p>
-      <details class="hol" id="hol"><summary>Public holidays <span id="holYear"></span></summary><ul id="holList"></ul></details>
+      <details class="hol" id="hol"><summary>Public holidays <span id="holYear"></span> (add or remove days)</summary><ul id="holList"></ul>
+        <div class="hol-add"><input type="date" id="newHolDate" aria-label="Date of extra day off"><input type="text" id="newHolName" placeholder="Name, e.g. Election Day" aria-label="Name of extra day off"><button type="button" id="newHolBtn">Add day off</button></div>
+        <p class="hint" style="margin-top:6px">Changes are saved in this browser only.</p></details>
     </section>
 
     <section>
@@ -206,6 +214,13 @@ const fmt=s=>{const d=parse(s);return d?pad(d.getDate())+"/"+pad(d.getMonth()+1)
 function easter(y){const a=y%19,b=Math.floor(y/100),c=y%100,d=Math.floor(b/4),e=b%4,f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),h=(19*a+b-d-g+15)%30,i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k)%7,m=Math.floor((a+11*h+22*l)/451),mo=Math.floor((h+l-7*m+114)/31),da=((h+l-7*m+114)%31)+1;return new Date(y,mo-1,da)}
 const hCache={};
 function holidays(y){
+  const m=new Map(baseHolidays(y));
+  const st=(typeof state!=="undefined")?state:{};
+  (st.removedHol||[]).forEach(d=>{if(d.startsWith(y+"-"))m.delete(d)});
+  (st.customHol||[]).forEach(h=>{if(h.date.startsWith(y+"-"))m.set(h.date,h.name+" (added)")});
+  return m;
+}
+function baseHolidays(y){
   if(hCache[y])return hCache[y];
   const s=new Map();
   const fixed=[[1,1,"New Year's Day"],[3,21,"Independence Day"],[5,1,"Worker's Day"],[5,4,"Cassinga Day"],[5,25,"Africa Day"],[8,26,"Heroes Day"],[12,10,"Human Rights Day"],[12,25,"Christmas Day"],[12,26,"Family Day"]];
@@ -224,14 +239,32 @@ const DAYN=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 function renderHol(){
   const f=state.rows.find(r=>r.on&&r.from);const y=f?parse(f.from).getFullYear():new Date().getFullYear();
   $("holYear").textContent=y;const ul=$("holList");ul.innerHTML="";
-  [...holidays(y).entries()].sort((a,b)=>a[0]<b[0]?-1:1).forEach(([d,n])=>{const dt=parse(d);const li=document.createElement("li");
-    const a=document.createElement("span");a.className="hd";a.textContent=DAYN[dt.getDay()]+" "+fmt(d);
-    const b=document.createElement("span");b.textContent=n;if(/moved from Sunday/.test(n))b.className="mv";
-    if(dt.getDay()===6){b.textContent=n+" (Saturday, no day off)"}
-    li.append(a,b);ul.appendChild(li)});
+  const act=holidays(y),rem=new Set(state.removedHol||[]);
+  const all=new Map(act);baseHolidays(y).forEach((n,d)=>{if(rem.has(d))all.set(d,n)});
+  [...all.entries()].sort((a,b)=>a[0]<b[0]?-1:1).forEach(([d,n])=>{const dt=parse(d);const li=document.createElement("li");
+    const off=rem.has(d),added=/\(added\)$/.test(n);
+    const a=document.createElement("span");a.className="hd"+(off?" off":"");a.textContent=DAYN[dt.getDay()]+" "+fmt(d);
+    const b=document.createElement("span");b.textContent=n;if(/moved from Sunday/.test(n))b.className="mv";if(added)b.className="add";
+    if(dt.getDay()===6)b.textContent=n+" (Saturday, no day off)";
+    if(off){b.className="off";b.textContent=n+" (removed, counted as a work day)"}
+    const btn=document.createElement("button");btn.type="button";btn.className="hbtn";
+    btn.textContent=off?"Restore":"Remove";btn.setAttribute("aria-label",(off?"Restore ":"Remove ")+n+" on "+fmt(d));
+    btn.addEventListener("click",()=>{
+      if(added)state.customHol=state.customHol.filter(h=>h.date!==d);
+      else if(off)state.removedHol=state.removedHol.filter(x=>x!==d);
+      else state.removedHol=[...(state.removedHol||[]),d];
+      recalc()});
+    li.append(a,b,btn);ul.appendChild(li)});
+}
+function addHoliday(){
+  const d=$("newHolDate").value,n=$("newHolName").value.trim()||"Day off";
+  if(!d){$("newHolDate").focus();return}
+  state.customHol=(state.customHol||[]).filter(h=>h.date!==d).concat([{date:d,name:n}]);
+  state.removedHol=(state.removedHol||[]).filter(x=>x!==d);
+  $("newHolDate").value="";$("newHolName").value="";recalc();
 }
 /* ---------- state ---------- */
-let state={name:"",remarks:"",ret:"",retManual:false,addr:"",tel:"",appDate:iso(new Date()),sig:"",
+let state={customHol:[],removedHol:[],name:"",remarks:"",ret:"",retManual:false,addr:"",tel:"",appDate:iso(new Date()),sig:"",
   rows:TYPES.map((t,i)=>({on:i===0,from:"",to:"",days:"",manual:false}))};
 try{const s=JSON.parse(localStorage.getItem(STORE)||"null");if(s&&s.rows&&s.rows.length===6)state=Object.assign(state,s)}catch(e){}
 function save(){try{localStorage.setItem(STORE,JSON.stringify(state))}catch(e){}}
@@ -315,8 +348,8 @@ $("resetBtn").addEventListener("click",()=>{
   resetArmed=false;$("resetBtn").textContent="Clear form";
   // keep personal details that rarely change
   const keep={name:state.name,addr:state.addr,tel:state.tel,sig:state.sig};
-  state={name:keep.name,remarks:"",ret:"",retManual:false,addr:keep.addr,tel:keep.tel,appDate:iso(new Date()),sig:keep.sig,rows:TYPES.map((t,i)=>({on:i===0,from:"",to:"",days:"",manual:false}))};
-  recalc();setStatus("Leave dates and remarks cleared. Your name, address, number and signature were kept.","ok");
+  state={customHol:state.customHol||[],removedHol:state.removedHol||[],name:keep.name,remarks:"",ret:"",retManual:false,addr:keep.addr,tel:keep.tel,appDate:iso(new Date()),sig:keep.sig,rows:TYPES.map((t,i)=>({on:i===0,from:"",to:"",days:"",manual:false}))};
+  recalc();setStatus("Leave dates and remarks cleared. Your name, address, number, signature and holiday changes were kept.","ok");
 });
 
 /* ---------- status / validation ---------- */
@@ -395,6 +428,8 @@ async function makeXlsx(){
 $("xlsxBtn").addEventListener("click",async()=>{if(!gate())return;if(!window.ExcelJS){setStatus("The Excel tool didn't load. Check your connection and reload.","err");return}
   setStatus("Preparing Excel file…");try{await offer(fileBase()+".xlsx",await makeXlsx())}catch(e){setStatus("Couldn't build the Excel file.","err")}});
 
+$("newHolBtn").addEventListener("click",addHoliday);
+$("newHolName").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();addHoliday()}});
 /* ---------- start ---------- */
 recalc();requestAnimationFrame(sizeCanvas);
 </script>
