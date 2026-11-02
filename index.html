@@ -81,6 +81,12 @@ table.lt{outline:.25cqw solid #111;outline-offset:-.1cqw}
 .sigs img{position:absolute;bottom:100%;left:2cqw;height:5.5cqw;max-width:90%}
 .sigs .d{position:absolute;bottom:calc(100% + .4cqw);left:0;font-size:1.3cqw}
 .note{font-size:.83rem;color:var(--muted)}
+.hol{margin-top:8px;font-size:.85rem}
+.hol summary{cursor:pointer;color:var(--accent);font-weight:600}
+.hol ul{list-style:none;padding:0;margin:8px 0 0;display:grid;gap:2px;grid-template-columns:auto 1fr;column-gap:14px}
+.hol li{display:contents}
+.hol .hd{font-family:var(--f-mono);font-size:.78rem;color:var(--muted);white-space:nowrap}
+.hol .mv{color:var(--warn)}
 @media (prefers-reduced-motion:no-preference){.type{transition:background .15s,border-color .15s}}
 </style>
 
@@ -105,7 +111,8 @@ table.lt{outline:.25cqw solid #111;outline-offset:-.1cqw}
     <section>
       <h2>Leave type</h2>
       <div class="types" id="types"></div>
-      <p class="hint">Work days skip weekends and Namibian public holidays. You can type over the number if needed.</p>
+      <p class="hint">Work days skip weekends and Namibian public holidays. A holiday on a Sunday moves to the Monday. You can type over the number if needed.</p>
+      <details class="hol" id="hol"><summary>Public holidays <span id="holYear"></span></summary><ul id="holList"></ul></details>
     </section>
 
     <section>
@@ -201,9 +208,9 @@ const hCache={};
 function holidays(y){
   if(hCache[y])return hCache[y];
   const s=new Map();
-  const fixed=[[1,1,"New Year's Day"],[3,21,"Independence Day"],[5,1,"Workers' Day"],[5,4,"Cassinga Day"],[5,25,"Africa Day"],[8,26,"Heroes' Day"],[12,10,"Human Rights Day"],[12,25,"Christmas Day"],[12,26,"Family Day"]];
+  const fixed=[[1,1,"New Year's Day"],[3,21,"Independence Day"],[5,1,"Worker's Day"],[5,4,"Cassinga Day"],[5,25,"Africa Day"],[8,26,"Heroes Day"],[12,10,"Human Rights Day"],[12,25,"Christmas Day"],[12,26,"Family Day"]];
   if(y>=2025)fixed.push([5,28,"Genocide Remembrance Day"]);
-  for(const[m,d,n]of fixed){const dt=new Date(y,m-1,d);s.set(iso(dt),n);if(dt.getDay()===0){const mo=new Date(y,m-1,d+1);s.set(iso(mo),n+" (observed)")}}
+  for(const[m,d,n]of fixed){const dt=new Date(y,m-1,d);s.set(iso(dt),n);if(dt.getDay()===0){const mo=new Date(y,m-1,d+1);s.set(iso(mo),n+" (moved from Sunday)")}}
   const e=easter(y),add=(o,n)=>{const d=new Date(e);d.setDate(d.getDate()+o);s.set(iso(d),n)};
   add(-2,"Good Friday");add(1,"Easter Monday");add(39,"Ascension Day");
   return hCache[y]=s;
@@ -213,6 +220,16 @@ const isWork=d=>d.getDay()!==0&&d.getDay()!==6&&!holidayName(d);
 function workDays(a,b){const s=parse(a),e=parse(b);if(!s||!e||e<s)return null;let n=0;const hs=[];for(const d=new Date(s);d<=e;d.setDate(d.getDate()+1)){if(isWork(d))n++;else{const h=holidayName(d);if(h&&d.getDay()!==0&&d.getDay()!==6)hs.push(h)}}return{n,hs}}
 function nextWork(s){const d=parse(s);if(!d)return"";do{d.setDate(d.getDate()+1)}while(!isWork(d));return iso(d)}
 
+const DAYN=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+function renderHol(){
+  const f=state.rows.find(r=>r.on&&r.from);const y=f?parse(f.from).getFullYear():new Date().getFullYear();
+  $("holYear").textContent=y;const ul=$("holList");ul.innerHTML="";
+  [...holidays(y).entries()].sort((a,b)=>a[0]<b[0]?-1:1).forEach(([d,n])=>{const dt=parse(d);const li=document.createElement("li");
+    const a=document.createElement("span");a.className="hd";a.textContent=DAYN[dt.getDay()]+" "+fmt(d);
+    const b=document.createElement("span");b.textContent=n;if(/moved from Sunday/.test(n))b.className="mv";
+    if(dt.getDay()===6){b.textContent=n+" (Saturday, no day off)"}
+    li.append(a,b);ul.appendChild(li)});
+}
 /* ---------- state ---------- */
 let state={name:"",remarks:"",ret:"",retManual:false,addr:"",tel:"",appDate:iso(new Date()),sig:"",
   rows:TYPES.map((t,i)=>({on:i===0,from:"",to:"",days:"",manual:false}))};
@@ -260,6 +277,7 @@ function render(){
     for(const k of["from","to","days"]){const el=$(k+i);if(document.activeElement!==el&&el.value!==r[k])el.value=r[k];}
     $("chip"+i).textContent=r.on&&r.days!==""?r.days+(r.days==="1"?" day":" days"):"";
   });
+  renderHol();
   $("retHint").textContent=state.retManual?"Set by you. Clear it to fill it in automatically again.":"Filled in automatically as the next work day after your leave.";
   // preview
   $("pName").textContent=state.name.toUpperCase();
