@@ -40,7 +40,7 @@ header.top p{margin:4px 0 0;color:var(--muted)}
 section h2{font-family:var(--f-display);font-weight:600;font-size:.82rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:0 0 10px}
 label.f{display:grid;gap:5px;font-weight:600;font-size:.9rem}
 .grid2{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}
-input[type=text],input[type=tel],input[type=date],input[type=number],textarea{
+select,input[type=text],input[type=tel],input[type=date],input[type=number],textarea{
   font:inherit;font-weight:400;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:9px 11px;width:100%;min-width:0}
 textarea{resize:vertical;min-height:64px}
 input:focus-visible,textarea:focus-visible,button:focus-visible,.type-toggle:focus-within{outline:2px solid var(--accent);outline-offset:2px}
@@ -87,6 +87,7 @@ table.lt{outline:.25cqw solid #111;outline-offset:-.1cqw}
 .sigs img{position:absolute;bottom:100%;left:2cqw;height:5.5cqw;max-width:90%}
 .sigs .d{position:absolute;bottom:calc(100% + .4cqw);left:0;font-size:1.3cqw}
 .note{font-size:.83rem;color:var(--muted)}
+select.bad{border-color:var(--warn);outline:2px solid var(--warn)}
 .mailhelp{border:1px solid var(--accent);background:var(--accent-soft);border-radius:8px;padding:10px 12px;font-size:.88rem;display:grid;gap:6px}
 .mailhelp p{margin:0}
 .mailhelp a{color:var(--accent);font-weight:600}
@@ -171,6 +172,14 @@ table.lt{outline:.25cqw solid #111;outline-offset:-.1cqw}
 
     <section>
       <h2>Send</h2>
+      <div class="grid2" style="margin-bottom:14px">
+        <label class="f" for="mailTo">Send to
+          <select id="mailTo"><option value="">Choose who to send to…</option></select>
+        </label>
+        <label class="f" for="mailCc">CC (optional)
+          <select id="mailCc"><option value="">No CC</option></select>
+        </label>
+      </div>
       <div class="actions">
         <button type="button" class="primary" id="mailBtn">Email application (Outlook)</button>
         <button type="button" id="pdfBtn">Download PDF</button>
@@ -443,7 +452,10 @@ $("xlsxBtn").addEventListener("click",async()=>{if(!gate())return;if(!window.Exc
 $("newHolBtn").addEventListener("click",addHoliday);
 $("newHolName").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();addHoliday()}});
 /* ---------- email ---------- */
-const LEAVE_EMAIL="hanou.jacobs@iae-nam.com";
+const PEOPLE=[["Bernd Metzger","bernd.metzger@iae-nam.com"],["Konrad Friedrich","konrad.friedrich@iae-nam.com"],["Kai Dauberschmidt","kai.dauberschmidt@iae-nam.com"],["Marc Schaum","marc.schaum@iae-nam.com"],["Admin","admin@iae-nam.com"]];
+PEOPLE.forEach(([n,e])=>{for(const id of["mailTo","mailCc"]){const o=document.createElement("option");o.value=e;o.textContent=n;o.title=e;$(id).appendChild(o)}});
+const toAddr=()=>$("mailTo").value, ccAddr=()=>{const c=$("mailCc").value;return c&&c!==toAddr()?c:""};
+$("mailTo").addEventListener("change",()=>{[...$("mailCc").options].forEach(o=>{o.disabled=!!o.value&&o.value===toAddr()});if($("mailCc").value===toAddr())$("mailCc").value="";$("mailTo").classList.remove("bad")});
 function mailParts(){
   const i=state.rows.findIndex(r=>r.on),r=state.rows[i]||{};const type=(TYPES[i]||"").toLowerCase().replace(/\b\w/g,c=>c.toUpperCase());
   const nm=state.name.trim();
@@ -453,13 +465,13 @@ function mailParts(){
 }
 function mailLinks(){
   const {subject,body}=mailParts(),e=encodeURIComponent;
-  const outlook="https://outlook.office.com/mail/deeplink/compose?to="+e(LEAVE_EMAIL)+"&subject="+e(subject)+"&body="+e(body);
+  const cc=ccAddr();const outlook="https://outlook.office.com/mail/deeplink/compose?to="+e(toAddr())+(cc?"&cc="+e(cc):"")+"&subject="+e(subject)+"&body="+e(body);
   $("outlookLink").href=outlook;
-  $("mailtoLink").href="mailto:"+LEAVE_EMAIL+"?subject="+e(subject)+"&body="+e(body);
-  $("mailAddr").textContent=LEAVE_EMAIL;
+  $("mailtoLink").href="mailto:"+toAddr()+"?"+(cc?"cc="+e(cc)+"&":"")+"subject="+e(subject)+"&body="+e(body);
+  $("mailAddr").textContent=toAddr();
   return outlook;
 }
-$("mailBtn").addEventListener("click",async()=>{if(!gate())return;if(!window.jspdf){setStatus("The PDF tool didn't load. Check your connection and reload.","err");return}
+$("mailBtn").addEventListener("click",async()=>{if(!gate())return;if(!toAddr()){setStatus("Please choose who to send it to.","err");$("mailTo").classList.add("bad");$("mailTo").focus();return}if(!window.jspdf){setStatus("The PDF tool didn't load. Check your connection and reload.","err");return}
   mailLinks();setStatus("Preparing email…");
   try{const pdf=await makePdf();const name=fileBase()+".eml";
     if(await offer(name,buildEml(fileBase()+".pdf",pdf))){$("emlName").textContent=name;$("mailHelp").hidden=false;
@@ -472,14 +484,14 @@ function buildEml(pdfName,pdfBuf){
   const bytes=new Uint8Array(pdfBuf);let bin="";for(let i=0;i<bytes.length;i+=8192)bin+=String.fromCharCode.apply(null,bytes.subarray(i,i+8192));
   const pdf64=btoa(bin).replace(/.{76}/g,"$&\r\n");
   const B="----=_IAE_"+Date.now();
-  return ["To: "+LEAVE_EMAIL,"Subject: =?UTF-8?B?"+b64u(subject)+"?=","X-Unsent: 1","MIME-Version: 1.0",
+  const cc=ccAddr();return ["To: "+toAddr()].concat(cc?["Cc: "+cc]:[]).concat(["Subject: =?UTF-8?B?"+b64u(subject)+"?=","X-Unsent: 1","MIME-Version: 1.0",
     'Content-Type: multipart/mixed; boundary="'+B+'"',"",
     "--"+B,"Content-Type: text/plain; charset=UTF-8","Content-Transfer-Encoding: base64","",
     b64u(body).replace(/.{76}/g,"$&\r\n"),"",
     "--"+B,'Content-Type: application/pdf; name="'+pdfName+'"',"Content-Transfer-Encoding: base64",
-    'Content-Disposition: attachment; filename="'+pdfName+'"',"",pdf64,"","--"+B+"--",""].join("\r\n");
+    'Content-Disposition: attachment; filename="'+pdfName+'"',"",pdf64,"","--"+B+"--",""]).join("\r\n");
 }
-$("copyAddr").addEventListener("click",async()=>{try{await navigator.clipboard.writeText(LEAVE_EMAIL);$("copyAddr").textContent="Copied"}catch(e){const s=window.getSelection(),r=document.createRange();r.selectNodeContents($("mailAddr"));s.removeAllRanges();s.addRange(r)}setTimeout(()=>{$("copyAddr").textContent="Copy address"},2000)});
+$("copyAddr").addEventListener("click",async()=>{try{await navigator.clipboard.writeText(toAddr());$("copyAddr").textContent="Copied"}catch(e){const s=window.getSelection(),r=document.createRange();r.selectNodeContents($("mailAddr"));s.removeAllRanges();s.addRange(r)}setTimeout(()=>{$("copyAddr").textContent="Copy address"},2000)});
 /* ---------- start ---------- */
 recalc();requestAnimationFrame(sizeCanvas);
 </script>
