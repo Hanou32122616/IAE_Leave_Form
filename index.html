@@ -489,7 +489,7 @@ function buildEml(pdfName,pdfBuf){
   const bytes=new Uint8Array(pdfBuf);let bin="";for(let i=0;i<bytes.length;i+=8192)bin+=String.fromCharCode.apply(null,bytes.subarray(i,i+8192));
   const pdf64=btoa(bin).replace(/.{76}/g,"$&\r\n");
   const B="----=_IAE_"+Date.now();
-  const cc=ccAddr();return ["To: "+toAddr()].concat(cc?["Cc: "+cc]:[]).concat(["Subject: =?UTF-8?B?"+b64u(subject)+"?=","X-Unsent: 1","MIME-Version: 1.0",
+  const cc=ccAddr(),named=e=>{const f=PEOPLE.find(x=>x[1]===e);return f?'"'+f[0]+'" <'+e+">":e};return ["To: "+named(toAddr())].concat(cc?["Cc: "+named(cc)]:[]).concat(["Subject: =?UTF-8?B?"+b64u(subject)+"?=","X-Unsent: 1","MIME-Version: 1.0",
     'Content-Type: multipart/mixed; boundary="'+B+'"',"",
     "--"+B,"Content-Type: text/html; charset=UTF-8","Content-Transfer-Encoding: base64","",
     b64u(htmlBody(body)).replace(/.{76}/g,"$&\r\n"),"",
