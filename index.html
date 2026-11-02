@@ -478,6 +478,11 @@ $("mailBtn").addEventListener("click",async()=>{if(!gate())return;if(!toAddr()){
       setStatus("Saved "+name+". Open it to send your application in Outlook.","ok")}}
   catch(e){setStatus("Couldn't build the email.","err")}});
 // an unsent .eml opens in Outlook as a new email, ready to send, with the PDF attached
+function htmlBody(text){
+  const esc=s=>s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  return '<html><head><meta charset="utf-8"></head><body><div style="font-family:Aptos,Calibri,Arial,sans-serif;font-size:11pt;color:#000">'
+    +text.split("\r\n").map(l=>l?"<p style=\"margin:0\">"+esc(l)+"</p>":"<p style=\"margin:0\">&nbsp;</p>").join("")+'</div></body></html>';
+}
 function buildEml(pdfName,pdfBuf){
   const {subject,body}=mailParts();
   const b64u=s=>btoa(unescape(encodeURIComponent(s)));
@@ -486,8 +491,8 @@ function buildEml(pdfName,pdfBuf){
   const B="----=_IAE_"+Date.now();
   const cc=ccAddr();return ["To: "+toAddr()].concat(cc?["Cc: "+cc]:[]).concat(["Subject: =?UTF-8?B?"+b64u(subject)+"?=","X-Unsent: 1","MIME-Version: 1.0",
     'Content-Type: multipart/mixed; boundary="'+B+'"',"",
-    "--"+B,"Content-Type: text/plain; charset=UTF-8","Content-Transfer-Encoding: base64","",
-    b64u(body).replace(/.{76}/g,"$&\r\n"),"",
+    "--"+B,"Content-Type: text/html; charset=UTF-8","Content-Transfer-Encoding: base64","",
+    b64u(htmlBody(body)).replace(/.{76}/g,"$&\r\n"),"",
     "--"+B,'Content-Type: application/pdf; name="'+pdfName+'"',"Content-Transfer-Encoding: base64",
     'Content-Disposition: attachment; filename="'+pdfName+'"',"",pdf64,"","--"+B+"--",""]).join("\r\n");
 }
