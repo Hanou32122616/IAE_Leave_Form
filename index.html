@@ -178,7 +178,6 @@ table.lt{outline:.25cqw solid #111;outline-offset:-.1cqw}
         <p><strong>Next:</strong> in the Outlook email that opened, click <strong>Attach</strong>, choose the PDF from your Downloads folder, then press Send.</p>
         <p>Outlook didn't open? <a id="outlookLink" target="_blank" rel="noopener">Open Outlook</a>, or use <a id="mailtoLink">the email app on this PC</a>, or send it to <span class="addr" id="mailAddr"></span> <button type="button" class="hbtn" id="copyAddr">Copy address</button></p>
       </div>
-      <p class="note">Your entries stay saved in this browser so you only type your address and number once.</p>
     </section>
   </form>
 
@@ -277,9 +276,10 @@ function addHoliday(){
 /* ---------- state ---------- */
 let state={customHol:[],removedHol:[],name:"",remarks:"",ret:"",retManual:false,addr:"",tel:"",appDate:iso(new Date()),sig:"",
   rows:TYPES.map((t,i)=>({on:i===0,from:"",to:"",days:"",manual:false}))};
-try{const s=JSON.parse(localStorage.getItem(STORE)||"null");if(s&&s.rows&&s.rows.length===6)state=Object.assign(state,s)}catch(e){}
+try{localStorage.removeItem(STORE)}catch(e){}
+try{const s=JSON.parse(localStorage.getItem(STORE+"-hol")||"null");if(s){state.customHol=s.customHol||[];state.removedHol=s.removedHol||[]}}catch(e){}
 (function(){let seen=false;state.rows.forEach(r=>{if(r.on&&!seen)seen=true;else r.on=false});if(!seen)state.rows[0].on=true})();
-function save(){try{localStorage.setItem(STORE,JSON.stringify(state))}catch(e){}}
+function save(){try{localStorage.setItem(STORE+"-hol",JSON.stringify({customHol:state.customHol,removedHol:state.removedHol}))}catch(e){}}
 
 /* ---------- build leave rows ---------- */
 const typesEl=$("types");
@@ -354,14 +354,11 @@ $("sigUpload").addEventListener("change",e=>{const f=e.target.files[0];if(!f)ret
 window.addEventListener("resize",()=>{clearTimeout(window._rs);window._rs=setTimeout(sizeCanvas,150)});
 
 /* ---------- reset ---------- */
-let resetArmed=false;
 $("resetBtn").addEventListener("click",()=>{
-  if(!resetArmed){resetArmed=true;$("resetBtn").textContent="Tap again to clear";setTimeout(()=>{resetArmed=false;$("resetBtn").textContent="Clear form"},3000);return}
-  resetArmed=false;$("resetBtn").textContent="Clear form";
-  // keep personal details that rarely change
-  const keep={name:state.name,addr:state.addr,tel:state.tel,sig:state.sig};
-  state={customHol:state.customHol||[],removedHol:state.removedHol||[],name:keep.name,remarks:"",ret:"",retManual:false,addr:keep.addr,tel:keep.tel,appDate:iso(new Date()),sig:keep.sig,rows:TYPES.map((t,i)=>({on:i===0,from:"",to:"",days:"",manual:false}))};
-  recalc();setStatus("Leave dates and remarks cleared. Your name, address, number, signature and holiday changes were kept.","ok");
+  state={customHol:state.customHol||[],removedHol:state.removedHol||[],name:"",remarks:"",ret:"",retManual:false,addr:"",tel:"",appDate:iso(new Date()),sig:"",rows:TYPES.map((t,i)=>({on:i===0,from:"",to:"",days:"",manual:false}))};
+  if(document.activeElement)document.activeElement.blur();
+  cx.clearRect(0,0,cv.width,cv.height);dirty=false;$("mailHelp").hidden=true;
+  recalc();setStatus("Form cleared.","ok");window.scrollTo({top:0,behavior:"smooth"});
 });
 
 /* ---------- status / validation ---------- */
