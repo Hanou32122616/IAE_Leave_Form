@@ -308,7 +308,7 @@ function recalc(){
     if(r.from&&r.to){
       const w=workDays(r.from,r.to);
       if(!w){hint.hidden=false;hint.className="hint warn";hint.textContent="The To date is before the From date.";if(!r.manual)r.days="";}
-      else{if(!r.manual)r.days=String(w.n);if(w.hs.length){hint.hidden=false;hint.textContent="Not counted: "+[...new Set(w.hs)].join(", ")+".";}}
+      else{if(!r.manual)r.days=String(w.n);}
     }else if(!r.manual)r.days="";
   });
   if(!state.retManual){const ends=state.rows.filter(r=>r.on&&r.to).map(r=>r.to).sort();state.ret=ends.length?nextWork(ends[ends.length-1]):"";}
