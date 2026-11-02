@@ -169,14 +169,14 @@ table.lt{outline:.25cqw solid #111;outline-offset:-.1cqw}
     <section>
       <h2>Send</h2>
       <div class="actions">
-        <button type="button" class="primary" id="mailBtn">Email application</button>
+        <button type="button" class="primary" id="mailBtn">Email application (Outlook)</button>
         <button type="button" id="pdfBtn">Download PDF</button>
         <button type="button" id="xlsxBtn">Download Excel</button>
       </div>
       <p class="status" id="status" role="status"></p>
       <div class="mailhelp" id="mailHelp" hidden>
-        <p><strong>Next:</strong> in the Outlook email that opened, click <strong>Attach</strong>, choose the PDF from your Downloads folder, then press Send.</p>
-        <p>Outlook didn't open? <a id="mailtoLink">Try again</a>, use <a id="outlookLink" target="_blank" rel="noopener">Outlook on the web</a>, or send it to <span class="addr" id="mailAddr"></span> <button type="button" class="hbtn" id="copyAddr">Copy address</button></p>
+        <p><strong>Next:</strong> open the downloaded email file (<span id="emlName"></span>) from your browser's downloads or your Downloads folder. Outlook opens a new email with the PDF already attached. Check it and press <strong>Send</strong>.</p>
+        <p>Doesn't open in Outlook? <a id="mailtoLink">Start the email another way</a> (attach the PDF yourself), use <a id="outlookLink" target="_blank" rel="noopener">Outlook on the web</a>, or send it to <span class="addr" id="mailAddr"></span> <button type="button" class="hbtn" id="copyAddr">Copy address</button></p>
       </div>
     </section>
   </form>
@@ -371,7 +371,7 @@ function check(){
 }
 function fileBase(){const n=(state.name.trim()||"Leave").replace(/[^A-Za-z0-9]+/g,"_").replace(/^_|_$/g,"");const f=state.rows.find(r=>r.on&&r.from);return n+"_Leave_Form"+(f?"_"+f.from:"")}
 async function offer(filename,data){
-  try{const blob=new Blob([data],{type:filename.endsWith(".pdf")?"application/pdf":"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
+  try{const blob=new Blob([data],{type:filename.endsWith(".pdf")?"application/pdf":filename.endsWith(".eml")?"message/rfc822":"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
     const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=filename;document.body.appendChild(a);a.click();
     setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},2000);setStatus("Saved "+filename+" to your Downloads folder.","ok");return true}
   catch(e){setStatus("Couldn't download the file. Try again.","err")}
@@ -380,10 +380,10 @@ function gate(){const p=check();if(p.length){setStatus("Please add "+p.join(" an
 
 /* ---------- PDF ---------- */
 async function makePdf(){
-  const {jsPDF}=window.jspdf;const doc=new jsPDF({unit:"mm",format:"a4"});
+  const {jsPDF}=window.jspdf;const doc=new jsPDF({unit:"mm",format:"a4",compress:true});
   const L=22,R=188,mid=105,valX=114;
   doc.setLineWidth(0.5);doc.rect(9,13,192,271);
-  doc.addImage("data:image/png;base64,"+LOGO_B64,"PNG",13,15,68,13.6);
+  doc.addImage("data:image/png;base64,"+LOGO_B64,"PNG",13,15,68,13.6,"logo","FAST");
   doc.setFont("helvetica","bold");doc.setFontSize(13);
   const ctr=(t,y)=>{doc.text(t,mid,y,{align:"center"});const w=doc.getTextWidth(t);doc.setLineWidth(0.3);doc.line(mid-w/2,y+1,mid+w/2,y+1)};
   ctr("IAEcc",48);ctr("LEAVE APPLICATION FORM",55);
@@ -408,7 +408,7 @@ async function makePdf(){
   doc.line(L,217,mid-4,217);doc.line(mid+4,217,R,217);doc.text("MANAGING MEMBERS SIGNATURE",L,220);doc.text("APPLICANT'S SIGNATURE",mid+4,220);
   doc.line(L,243,mid-4,243);doc.line(mid+4,243,R,243);doc.text("DATE",L,246);doc.text("DATE",mid+4,246);
   if(state.appDate){doc.setFontSize(8.5);doc.setFont("helvetica","normal");doc.text(fmt(state.appDate),mid+5,241.5)}
-  if(state.sig){const im=await loadImg(state.sig);const h=13,w=Math.min(60,im.width/im.height*h);doc.addImage(state.sig,"PNG",mid+8,216-h,w,h)}
+  if(state.sig){const im=await loadImg(state.sig);const h=13,w=Math.min(60,im.width/im.height*h);doc.addImage(state.sig,"PNG",mid+8,216-h,w,h,"sig","FAST")}
   return doc.output("arraybuffer");
 }
 const loadImg=src=>new Promise((res,rej)=>{const i=new Image();i.onload=()=>res(i);i.onerror=rej;i.src=src});
@@ -463,11 +463,25 @@ function mailLinks(){
   return outlook;
 }
 $("mailBtn").addEventListener("click",async()=>{if(!gate())return;if(!window.jspdf){setStatus("The PDF tool didn't load. Check your connection and reload.","err");return}
-  // open Outlook first, straight inside the click, so the browser allows it
-  mailLinks();$("mailHelp").hidden=false;
-  try{window.location.href=$("mailtoLink").href}catch(e){}
-  setStatus("Preparing PDF…");
-  try{await offer(fileBase()+".pdf",await makePdf())}catch(e){setStatus("Couldn't build the PDF.","err")}});
+  mailLinks();setStatus("Preparing email…");
+  try{const pdf=await makePdf();const name=fileBase()+".eml";
+    if(await offer(name,buildEml(fileBase()+".pdf",pdf))){$("emlName").textContent=name;$("mailHelp").hidden=false;
+      setStatus("Saved "+name+". Open it to send your application in Outlook.","ok")}}
+  catch(e){setStatus("Couldn't build the email.","err")}});
+// an unsent .eml opens in Outlook as a new email, ready to send, with the PDF attached
+function buildEml(pdfName,pdfBuf){
+  const {subject,body}=mailParts();
+  const b64u=s=>btoa(unescape(encodeURIComponent(s)));
+  const bytes=new Uint8Array(pdfBuf);let bin="";for(let i=0;i<bytes.length;i+=8192)bin+=String.fromCharCode.apply(null,bytes.subarray(i,i+8192));
+  const pdf64=btoa(bin).replace(/.{76}/g,"$&\r\n");
+  const B="----=_IAE_"+Date.now();
+  return ["To: "+LEAVE_EMAIL,"Subject: =?UTF-8?B?"+b64u(subject)+"?=","X-Unsent: 1","MIME-Version: 1.0",
+    'Content-Type: multipart/mixed; boundary="'+B+'"',"",
+    "--"+B,"Content-Type: text/plain; charset=UTF-8","Content-Transfer-Encoding: base64","",
+    b64u(body).replace(/.{76}/g,"$&\r\n"),"",
+    "--"+B,'Content-Type: application/pdf; name="'+pdfName+'"',"Content-Transfer-Encoding: base64",
+    'Content-Disposition: attachment; filename="'+pdfName+'"',"",pdf64,"","--"+B+"--",""].join("\r\n");
+}
 $("copyAddr").addEventListener("click",async()=>{try{await navigator.clipboard.writeText(LEAVE_EMAIL);$("copyAddr").textContent="Copied"}catch(e){const s=window.getSelection(),r=document.createRange();r.selectNodeContents($("mailAddr"));s.removeAllRanges();s.addRange(r)}setTimeout(()=>{$("copyAddr").textContent="Copy address"},2000)});
 /* ---------- start ---------- */
 recalc();requestAnimationFrame(sizeCanvas);
