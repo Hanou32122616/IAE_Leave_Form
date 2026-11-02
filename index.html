@@ -175,8 +175,8 @@ table.lt{outline:.25cqw solid #111;outline-offset:-.1cqw}
       </div>
       <p class="status" id="status" role="status"></p>
       <div class="mailhelp" id="mailHelp" hidden>
-        <p><strong>Next:</strong> attach the PDF from your Downloads folder to the email that opened, then press Send.</p>
-        <p>Email didn't open? Use <a id="gmailLink" target="_blank" rel="noopener">Gmail</a> or <a id="outlookLink" target="_blank" rel="noopener">Outlook on the web</a> instead, or send it to <span class="addr" id="mailAddr"></span> <button type="button" class="hbtn" id="copyAddr">Copy address</button></p>
+        <p><strong>Next:</strong> in the Outlook email that opened, click <strong>Attach</strong>, choose the PDF from your Downloads folder, then press Send.</p>
+        <p>Outlook didn't open? <a id="outlookLink" target="_blank" rel="noopener">Open Outlook</a>, or use <a id="mailtoLink">the email app on this PC</a>, or send it to <span class="addr" id="mailAddr"></span> <button type="button" class="hbtn" id="copyAddr">Copy address</button></p>
       </div>
       <p class="note">Your entries stay saved in this browser so you only type your address and number once.</p>
     </section>
@@ -457,17 +457,20 @@ function mailParts(){
   L.push("","Kind regards,",nm);
   return{subject,body:L.join("\r\n")};
 }
-function openMail(){
+function mailLinks(){
   const {subject,body}=mailParts(),e=encodeURIComponent;
-  const mailto="mailto:"+LEAVE_EMAIL+"?subject="+e(subject)+"&body="+e(body);
-  $("gmailLink").href="https://mail.google.com/mail/?view=cm&fs=1&to="+e(LEAVE_EMAIL)+"&su="+e(subject)+"&body="+e(body);
-  $("outlookLink").href="https://outlook.office.com/mail/deeplink/compose?to="+e(LEAVE_EMAIL)+"&subject="+e(subject)+"&body="+e(body);
-  $("mailAddr").textContent=LEAVE_EMAIL;$("mailHelp").hidden=false;
-  const a=document.createElement("a");a.href=mailto;document.body.appendChild(a);a.click();a.remove();
+  const outlook="https://outlook.office.com/mail/deeplink/compose?to="+e(LEAVE_EMAIL)+"&subject="+e(subject)+"&body="+e(body);
+  $("outlookLink").href=outlook;
+  $("mailtoLink").href="mailto:"+LEAVE_EMAIL+"?subject="+e(subject)+"&body="+e(body);
+  $("mailAddr").textContent=LEAVE_EMAIL;
+  return outlook;
 }
 $("mailBtn").addEventListener("click",async()=>{if(!gate())return;if(!window.jspdf){setStatus("The PDF tool didn't load. Check your connection and reload.","err");return}
-  setStatus("Preparing PDF…");let ok=false;try{ok=await offer(fileBase()+".pdf",await makePdf())}catch(e){setStatus("Couldn't build the PDF.","err");return}
-  if(ok){setTimeout(openMail,400)}});
+  // open Outlook straight away (inside the click) so the browser doesn't block the new tab
+  const url=mailLinks();let w=null;try{w=window.open(url,"_blank")}catch(e){}
+  $("mailHelp").hidden=false;
+  setStatus("Preparing PDF…");try{await offer(fileBase()+".pdf",await makePdf())}catch(e){setStatus("Couldn't build the PDF.","err")}
+  if(!w)setStatus("Click Open Outlook below to start the email. The PDF is in your Downloads folder.","err");});
 $("copyAddr").addEventListener("click",async()=>{try{await navigator.clipboard.writeText(LEAVE_EMAIL);$("copyAddr").textContent="Copied"}catch(e){const s=window.getSelection(),r=document.createRange();r.selectNodeContents($("mailAddr"));s.removeAllRanges();s.addRange(r)}setTimeout(()=>{$("copyAddr").textContent="Copy address"},2000)});
 /* ---------- start ---------- */
 recalc();requestAnimationFrame(sizeCanvas);
