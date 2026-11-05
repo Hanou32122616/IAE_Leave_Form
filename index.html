@@ -339,7 +339,7 @@ function render(){
   renderHol();
   $("retHint").textContent=state.retManual?"Set by you. Clear it to fill it in automatically again.":"Filled in automatically as the next work day after your leave.";
   // preview
-  $("pName").textContent=state.name.toUpperCase();
+  $("pName").textContent=state.name;
   $("pRows").innerHTML="";
   state.rows.forEach((r,i)=>{const tr=document.createElement("tr");const use=r.on;
     [TYPES[i],use?fmt(r.from):"",use?fmt(r.to):"",use?r.days:""].forEach((v,j)=>{const td=document.createElement("td");td.textContent=v;if(j)td.className="c";tr.appendChild(td)});
@@ -402,7 +402,7 @@ async function makePdf(){
   const ctr=(t,y)=>{doc.text(t,mid,y,{align:"center"});const w=doc.getTextWidth(t);doc.setLineWidth(0.35);doc.line(mid-w/2,y+1.2,mid+w/2,y+1.2)};
   ctr("IAEcc",46);ctr("LEAVE APPLICATION FORM",54);
   const field=(label,val,y)=>{doc.setFontSize(10.5);doc.setFont("helvetica","bold");doc.text(label,L,y);doc.setLineWidth(0.3);doc.line(valX,y+1.2,R,y+1.2);if(val){doc.setFontSize(11);doc.setFont("helvetica","normal");const t=doc.splitTextToSize(val,R-valX-2);doc.text(t[0]+(t.length>1?"…":""),valX+1,y)}};
-  field("APPLICANTS NAME & INITIALS:",state.name.toUpperCase(),72);
+  field("APPLICANTS NAME & INITIALS:",state.name.trim(),72);
   // table
   const cols=[L,L+55,L+92,L+129,R],top=82,rh=7.5;doc.setLineWidth(0.25);doc.setFontSize(9.5);
   const head=["TYPE","FROM","TO","TOTAL WORK DAYS"];
@@ -433,7 +433,7 @@ async function makeXlsx(){
   const bin=Uint8Array.from(atob(XLSX_B64),c=>c.charCodeAt(0));
   const wb=new ExcelJS.Workbook();await wb.xlsx.load(bin.buffer);const ws=wb.worksheets[0];
   const setDate=(addr,s)=>{const c=ws.getCell(addr);if(s){const d=parse(s);c.value=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate()));c.numFmt="dd/mm/yyyy"}else c.value=null};
-  ws.getCell("G16").value=state.name.toUpperCase()||null;
+  ws.getCell("G16").value=state.name.trim()||null;
   state.rows.forEach((r,i)=>{const row=22+i;
     if(r.on){setDate("F"+row,r.from);setDate("G"+row,r.to);const n=parseFloat(r.days);ws.getCell("H"+row).value=isNaN(n)?null:n}
     else{ws.getCell("F"+row).value=null;ws.getCell("G"+row).value=null;ws.getCell("H"+row).value=null}
@@ -460,7 +460,7 @@ $("mailTo").addEventListener("change",()=>{[...$("mailCc").options].forEach(o=>{
 function mailParts(){
   const i=state.rows.findIndex(r=>r.on),r=state.rows[i]||{};const type=(TYPES[i]||"").toLowerCase().replace(/\b\w/g,c=>c.toUpperCase());
   const nm=state.name.trim();
-  const subject="Leave Application - "+nm.toUpperCase()+" - "+type+" ("+fmt(r.from)+" to "+fmt(r.to)+")";
+  const subject="Leave Application - "+nm+" - "+type+" ("+fmt(r.from)+" to "+fmt(r.to)+")";
   const L=["Good day,","","Please find attached my leave application.","","Kind regards,",nm];
   return{subject,body:L.join("\r\n")};
 }
